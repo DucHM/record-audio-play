@@ -14,11 +14,13 @@ import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -29,10 +31,12 @@ import java.util.Locale;
 public class RecordingActivity extends AppCompatActivity implements View.OnClickListener {
 
     private TextView mTimerTextView;
+    private TextView mSizeTextView;
     private Button mCancelButton;
     private Button mStopButton;
     private Button mShareButton;
     private Button mPlayButton;
+    private ImageView mStartButton;
 
     private MediaRecorder mRecorder;
     private long mStartTime = 0;
@@ -55,6 +59,10 @@ public class RecordingActivity extends AppCompatActivity implements View.OnClick
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_recording);
         this.mTimerTextView = (TextView) this.findViewById(R.id.timer);
+        this.mSizeTextView = (TextView) this.findViewById(R.id.size);
+
+        this.mStartButton = (ImageView) this.findViewById(R.id.start_button);
+        this.mStartButton.setOnClickListener(this);
 
         this.mCancelButton = (Button) this.findViewById(R.id.cancel_button);
         this.mCancelButton.setOnClickListener(this);
@@ -73,8 +81,7 @@ public class RecordingActivity extends AppCompatActivity implements View.OnClick
     @Override
     protected void onStart() {
         super.onStart();
-        Log.d("Voice Recorder", "output: " + getOutputFile());
-        startRecording();
+
     }
 
     @Override
@@ -113,8 +120,10 @@ public class RecordingActivity extends AppCompatActivity implements View.OnClick
     }
 
     protected  void stopRecording(boolean saveFile) {
-        mRecorder.stop();
-        mRecorder.release();
+        if (mRecorder != null) {
+            mRecorder.stop();
+            mRecorder.release();
+        }
         mRecorder = null;
         mStartTime = 0;
         mHandler.removeCallbacks(mTickExecutor);
@@ -144,11 +153,33 @@ public class RecordingActivity extends AppCompatActivity implements View.OnClick
                 ++i;
             }
         }
+        mSizeTextView.setText(formatFileSize());
+    }
+
+    private String formatFileSize() {
+        if (mOutputFile != null) {
+            File recordingFile = new File(mOutputFile.getAbsolutePath());
+            if (recordingFile.exists()) {
+
+                long fileSizeInByte = recordingFile.length();
+                if(fileSizeInByte <= 0) return "0KB";
+                final String[] units = new String[] { "B", "KB", "MB", "GB", "TB" };
+                int digitGroups = (int) (Math.log10(fileSizeInByte)/Math.log10(1024));
+                return new DecimalFormat("#,##0.#").format(fileSizeInByte/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+
+            }
+        }
+
+        return "0KB";
     }
 
     @Override
     public void onClick(View view) {
         switch (view.getId()) {
+            case R.id.start_button:
+                Log.d("Voice Recorder", "output: " + getOutputFile());
+                startRecording();
+                break;
             case R.id.cancel_button:
                 stopRecording(false);
                 setResult(RESULT_CANCELED);
@@ -156,31 +187,36 @@ public class RecordingActivity extends AppCompatActivity implements View.OnClick
                 break;
             case R.id.stop_button:
                 stopRecording(true);
-                Uri urii = Uri.parse("file://" + mOutputFile.getAbsolutePath());
-                Intent pushScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                pushScanIntent.setData(urii);
-                sendBroadcast(pushScanIntent);
-                setResult(RESULT_OK);
+                if (mOutputFile != null) {
+                    Uri urii = Uri.parse("file://" + mOutputFile.getAbsolutePath());
+                    Intent pushScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                    pushScanIntent.setData(urii);
+                    sendBroadcast(pushScanIntent);
+                    setResult(RESULT_OK);
+                }
                 break;
             case R.id.play_button:
                 stopRecording(true);
-                Uri play = Uri.parse("file://" + mOutputFile.getAbsolutePath());
-                Intent playIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                playIntent.setData(play);
-                sendBroadcast(playIntent);
-                setResult(RESULT_OK);
-
+                if (mOutputFile != null) {
+                    Uri play = Uri.parse("file://" + mOutputFile.getAbsolutePath());
+                    Intent playIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                    playIntent.setData(play);
+                    sendBroadcast(playIntent);
+                    setResult(RESULT_OK);
+                }
                 playAudio();
 
                 break;
             case R.id.share_button:
                 stopRecording(true);
-                Uri uri = Uri.parse("file://" + mOutputFile.getAbsolutePath());
-                Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                scanIntent.setData(uri);
-                sendBroadcast(scanIntent);
-                setResult(RESULT_OK, new Intent().setData(uri));
-                finish();
+                if (mOutputFile != null) {
+                    Uri uri = Uri.parse("file://" + mOutputFile.getAbsolutePath());
+                    Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                    scanIntent.setData(uri);
+                    sendBroadcast(scanIntent);
+                    setResult(RESULT_OK, new Intent().setData(uri));
+                    finish();
+                }
                 break;
         }
     }
